@@ -1,4 +1,5 @@
 
+from logging import warning
 import anndata
 import newick
 import numpy as np
@@ -8,7 +9,7 @@ import ot
 import lineageot.inference as inf
 
 
-def fit_tree(adata, time, barcodes_key = 'barcodes', clones_key = "X_clone", clone_times = None, method = 'neighbor join'):
+def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clone", clone_times = None, method = 'neighbor join'):
     """
     Fits a lineage tree to lineage barcodes of all cells in adata. To compute the lineage tree for a specific time point,
     filter adata before calling fit_tree. The fitted tree is annotated with node times but not states.
@@ -17,8 +18,8 @@ def fit_tree(adata, time, barcodes_key = 'barcodes', clones_key = "X_clone", clo
     ----------
     adata : AnnData
         Annotated data matrix with lineage-traced cells
-    time : Number
-        Time of sampling of the cells of adata relative to most recent common ancestor (for dynamic lineage tracing) or labeling time (for static lineage tracing).
+    time : Number, default None
+        Time of sampling of the cells of adata relative to most recent common ancestor (for dynamic lineage tracing) or None otherwise (for static lineage tracing).
     barcodes_key : str, default 'barcodes'
         Key in adata.obsm containing cell barcodes. Ignored if using clonal data.
         If using barcode data, each row of adata.obsm[barcodes_key] should be a barcode where each entry corresponds to a possibly-mutated site.
@@ -69,10 +70,12 @@ def fit_tree(adata, time, barcodes_key = 'barcodes', clones_key = "X_clone", clo
         fitted_tree = inf.make_tree_from_nonnested_clones(adata.obsm[clones_key], time)
 
     elif method == "clones":
+        if time is not None:
+            warning("time argument is not used for clones method, sampling time information taken from adata.obs['time'] directly")
         if clone_times is None:
             raise ValueError("clone_times must be specified in order to fit a tree to nested clones.")
         clone_times = np.array(clone_times) # allowing clone_times to be passed as a raw list without causing errors later
-        fitted_tree = inf.make_tree_from_clones(adata.obsm[clones_key], time, clone_times)
+        fitted_tree = inf.make_tree_from_clones(adata, clone_times, clones_key=clones_key)
     else:
         raise ValueError("'" + method + "' is not an available method for fitting trees.")
 

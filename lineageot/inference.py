@@ -928,7 +928,7 @@ def make_tree_from_nonnested_clones(clone_matrix, time, root_time_factor = 1000)
     return fitted_tree
 
 
-def make_tree_from_clones(clone_matrix, time, clone_times, root_time = -np.inf):
+def make_tree_from_clones(adata, clone_times, root_time = -np.inf, clones_key = "X_clone"):
     """
     Adds a leaf for each row in clone_matrix to clone_reference_tree. The parent is set as the
     clone that the cell is a member of with the latest labeling time.
@@ -937,27 +937,29 @@ def make_tree_from_clones(clone_matrix, time, clone_times, root_time = -np.inf):
 
     Parameters
     ----------
-    clone_matrix: Boolean array with shape [num_cells, num_clones]
-        Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
+    adata: AnnData
+        Annotated data matrix with lineage-traced cells. Every cell will be added to the tree.
     clone_times: Vector of length num_clones
         Each entry has the time of labeling of the corresponding clone.
-    time: Number
-        The time of sampling of cells.
     root_time: Number, default -np.inf
         The time of the most recent common ancestor of all clones. 
         If -np.inf, clones are effectively treated as unrelated
+    clones_key: str, default 'X_clone'
+        Key in adata.obsm containing clonal data. Ignored if using barcodes directly.
+        If using clonal data, adata.obsm[clones_key] should be a num_cells x num_clones boolean matrix.
+        Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
 
     Returns
     -------
     fitted_tree: NetworkX DiGraph
         A tree annotated with edge and node times
     """
-    fitted_tree = make_clone_reference_tree(clone_matrix, clone_times, root_time)
-    add_samples_to_clone_tree(clone_matrix, clone_times, fitted_tree, time)
+    fitted_tree = make_clone_reference_tree(adata, clone_times, root_time, clones_key)
+    add_samples_to_clone_tree(adata, clone_times, fitted_tree, clones_key)
     return fitted_tree
 
 
-def add_samples_to_clone_tree(clone_matrix, clone_times, clone_reference_tree, sampling_time):
+def add_samples_to_clone_tree(adata, clone_times, clone_reference_tree, clones_key = "X_clone"):
     """
     Adds a leaf for each row in clone_matrix to clone_reference_tree. The parent is set as the
     clone that the cell is a member of with the latest labeling time.
@@ -966,25 +968,29 @@ def add_samples_to_clone_tree(clone_matrix, clone_times, clone_reference_tree, s
 
     Parameters
     ----------
-    clone_matrix: Boolean array with shape [num_cells, num_clones]
-        Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
+    adata: AnnData
+        Annotated data matrix with lineage-traced cells. Every cell will be added to the tree.
     clone_times: Vector of length num_clones
-        Each entry has the time of labeling of the corresponding clone.
+        Each entry has the time of labeling of the corresponding clone in adata.obsm['X_clone'].
     clone_reference_tree: 
         The tree of lineage relationships among clones.
-    sampling_time: Number
-        The time of sampling of the cells. Should be greater than all clone labeling times.
+    clones_key: str, default 'X_clone'
+        Key in adata.obsm containing clonal data. Ignored if using barcodes directly.
+        If using clonal data, adata.obsm[clones_key] should be a num_cells x num_clones boolean matrix.
+        Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
 
     Returns
     -------
     """
+
+    clone_matrix = adata.obsm[clones_key]
     n_cells, n_clones = clone_matrix.shape
     for cell in range(n_cells):
         parent_index = get_parent_clone_of_leaf(cell, clone_matrix, clone_times)
         parent_label = 'clone_' + str(parent_index)
+        sampling_time = adata.obs['time'][cell]
         edge_time = sampling_time - clone_reference_tree.nodes[parent_label]['time']
-        clone_reference_tree.add_node(cell, time = sampling_time, time_to_parent = edge_time)
-        clone_reference_tree.add_edge(parent_label, cell, time = edge_time)
+        assert edge_time >= 0, "Sampling time must be greater than cmost recent clone labeling time."
     return
 
 
@@ -1002,19 +1008,24 @@ def get_parent_clone_of_leaf(leaf, clone_matrix, clone_times):
         return candidate_clones[maximal_time_indices[0]]
 
 
-def make_clone_reference_tree(clone_matrix, clone_times, root_time = -np.inf):
+def make_clone_reference_tree(adata, clone_times, root_time = -np.inf, clones_key = "X_clone"):
     """
     Makes a tree with nodes for each clone.
     
     Parameters
     ----------
-    clone_matrix: Boolean array with shape [num_cells, num_clones]
-        Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
+    adata: AnnData
+        Annotated data matrix with lineage-traced cells. Every cell will be added to the tree.
     clone_times: Vector of length num_clones
         Each entry has the time of labeling of the corresponding clone.
     root_time: Number, default -np.inf
         The time of the most recent common ancestor of all clones. 
         If -np.inf, clone subtrees are effectively treated independently.
+    clones_key: str, default 'X_clone'
+        Key in adata.obsm containing clonal data. Ignored if using barcodes directly.
+        If using clonal data, adata.obsm[clones_key] should be a num_cells x num_clones boolean matrix.
+        Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
+
 
     Returns
     -------
@@ -1022,6 +1033,7 @@ def make_clone_reference_tree(clone_matrix, clone_times, root_time = -np.inf):
         A tree of clones (not sampled cells), annotated with edge and node times
     """
 
+    clone_matrix = adata.obsm[clones_key]
     n_cells, n_clones = clone_matrix.shape
     unique_times = np.unique(clone_times) # output is sorted
     clone_labels = ['clone_' + str(i) for i in range(n_clones)]

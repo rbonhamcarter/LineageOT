@@ -988,9 +988,12 @@ def add_samples_to_clone_tree(adata, clone_times, clone_reference_tree, clones_k
     for cell in range(n_cells):
         parent_index = get_parent_clone_of_leaf(cell, clone_matrix, clone_times)
         parent_label = 'clone_' + str(parent_index)
+        cell_label = adata.obs_names[cell]
         sampling_time = adata.obs['time'][cell]
         edge_time = sampling_time - clone_reference_tree.nodes[parent_label]['time']
         assert edge_time >= 0, "Sampling time must be greater than cmost recent clone labeling time."
+        clone_reference_tree.add_node(cell_label, time = sampling_time, time_to_parent = edge_time)
+        clone_reference_tree.add_edge(parent_label, cell_label, time = edge_time)
     return
 
 

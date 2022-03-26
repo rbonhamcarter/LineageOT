@@ -160,30 +160,38 @@ def annotate_tree(tree, mutation_rates, time_inference_method = 'independent', o
     add_times_to_edges(tree)
     return tree
 
-def add_leaf_barcodes(tree, barcode_array):
+def add_leaf_barcodes(tree, barcode_array, cell_index):
     """
-    Adds barcodes from barcode_array to the corresponding leaves of the tree
+    Adds barcodes from barcode_array to the corresponding leaves of the tree as
+    indexed by cell_index
     """
     
     num_cells = barcode_array.shape[0]
     for cell in range(num_cells):
-        if 'cell' in tree.nodes[cell]:
-            tree.nodes[cell]['cell'].barcode = barcode_array[cell, :]
+        cell_label = cell_index[cell]
+        if 'cell' in tree.nodes[cell_label]:
+            tree.nodes[cell_label]['cell'].barcode = barcode_array[cell, :]
         else:
-            tree.nodes[cell]['cell'] = sim.Cell(np.nan, barcode_array[cell, :])
+            tree.nodes[cell_label]['cell'] = sim.Cell(np.nan, barcode_array[cell, :])
     tree.nodes['root']['cell'] = sim.Cell(np.nan, np.zeros(barcode_array.shape[1]))
     return tree
 
-def add_leaf_x(tree, x_array):
+def add_leaf_x(tree, adata, state_key = None):
     """
-    Adds expression vectors from x_array to the corresponding leaves of the tree
+    Adds expression vectors from adata.X to the corresponding leaves of the tree
     """
+    if state_key is None:
+        x_array = adata.X
+    else:
+        x_array = adata.obsm[state_key]
+
     num_cells = x_array.shape[0]
     for cell in range(num_cells):
-        if 'cell' in tree.nodes[cell]:
-            tree.nodes[cell]['cell'].x = x_array[cell, :]
+        cell_label = adata.obs_names[cell]
+        if 'cell' in tree.nodes[cell_label]:
+            tree.nodes[cell_label]['cell'].x = x_array[cell, :]
         else:
-            tree.nodes[cell]['cell'] = sim.Cell(x_array[cell, :], np.nan)
+            tree.nodes[cell_label]['cell'] = sim.Cell(x_array[cell_label, :], np.nan)
     return tree
 
     
@@ -614,7 +622,7 @@ def resample_cells(tree, params, current_node = 'root', inplace = False):
     """
     if not inplace:
         tree = copy.deepcopy(tree)
-
+                                     
     for child in tree.successors(current_node):
         initial_cell = tree.nodes[current_node]['cell'].deepcopy()
         initial_cell.reset_seed()
@@ -883,7 +891,7 @@ def get_ancestor_data(tree, time, leaf = None):
 # Tree fitting functions #
 ##########################
 
-def make_tree_from_nonnested_clones(clone_matrix, time, root_time_factor = 1000):
+def make_tree_from_nonnested_clones(clone_matrix, cell_index, time, root_time_factor = 1000):
     """
     Creates a forest of stars from clonally-labeled data. The centers of the stars are connected to a root far in the past.
 
@@ -892,12 +900,18 @@ def make_tree_from_nonnested_clones(clone_matrix, time, root_time_factor = 1000)
     clone_matrix: Boolean array with shape [num_cells, num_clones]
         Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
         Each cell should belong to exactly one clone.
+    cell_index: List 
+        Keys which index the cells in the clone_matrix. Order of rows in the clone_matrix should
+        correspond to the order of keys in the cell_index.
     time: Number
         The time of sampling of cells relative to initial clonal labelling.
     root_time_factor: Number, default 1000
         Relative time to root of tree (i.e., most recent common ancestor of all cells).
         The time of the root is set to -root_time_factor*time.
         The default is large so minimal information is shared across clones.
+
+
+    
     Returns
     -------
     fitted_tree: NetworkX DiGraph
@@ -909,15 +923,16 @@ def make_tree_from_nonnested_clones(clone_matrix, time, root_time_factor = 1000)
     clone_labels = [-i-1 for i in range(n_clones) if np.sum(clone_matrix[:, i]) > 0] # negative so distinct from cells, skipping empty clones
     
     # add nodes for cells
-    fitted_tree.add_nodes_from(range(n_cells), time = time, time_to_parent = time)
+    fitted_tree.add_nodes_from(cell_index, time = time, time_to_parent = time)
 
     # add nodes for clone progenitors
     fitted_tree.add_nodes_from(clone_labels, time = 0, time_to_parent = root_time_factor*time)
 
     # add edges from clone progenitors to observed cells
     for clone in clone_labels:
-        cells_in_clone = np.nonzero(clone_matrix[:, -clone - 1])[0]
-        fitted_tree.add_edges_from([(clone, cell, {'time': time}) for cell in cells_in_clone])
+        cells_in_clone_idx = np.nonzero(clone_matrix[:, -clone - 1])[0]
+        cells_in_clone_idx = [cell_index[i] for i in cells_in_clone_idx]
+        fitted_tree.add_edges_from([(clone, cell, {'time': time}) for cell in cells_in_clone_idx])
 
     # add root
     fitted_tree.add_node('root', time = -root_time_factor*time)
@@ -945,8 +960,8 @@ def make_tree_from_clones(adata, clone_times, root_time = -np.inf, clones_key = 
         The time of the most recent common ancestor of all clones. 
         If -np.inf, clones are effectively treated as unrelated
     clones_key: str, default 'X_clone'
-        Key in adata.obsm containing clonal data. Ignored if using barcodes directly.
-        If using clonal data, adata.obsm[clones_key] should be a num_cells x num_clones boolean matrix.
+        Key in adata.obsm containing clonal data.
+        adata.obsm[clones_key] should be a num_cells x num_clones boolean matrix.
         Each entry is 1 if the corresponding cell belongs to the corresponding clone and zero otherwise.
 
     Returns
@@ -1123,22 +1138,24 @@ class NeighborJoinNode:
 
 
 
-def neighbor_join(distance_matrix):
+def neighbor_join(distance_matrix, cell_index):
     """
-    Creates a tree by neighbor joining with the input distance matrix
+    Creates a tree by neighbor joining with the input distance matrix, leaves are
+    indexed with the corresponding index from cell_index
 
     Final row/column of distance_matrix assumed to correspond to the root
     (unmutated) barcode
     """
     n = distance_matrix.shape[0]
 
+    assert len(cell_index) == n - 1, "Length of cell_index does not match dim of distance_matrix."
     assert(n >= 3) # no need to bother with neighbor joining if one or two nodes
 
     unjoined_nodes = []
     for i in range(n-1):
         subtree = nx.DiGraph()
-        subtree.add_node(i)
-        node = NeighborJoinNode(subtree, i, False)
+        subtree.add_node(cell_index[i])
+        node = NeighborJoinNode(subtree, cell_index[i], False)
         unjoined_nodes.append(node)
 
     subtree = nx.DiGraph()
@@ -1147,7 +1164,7 @@ def neighbor_join(distance_matrix):
     unjoined_nodes.append(node)
 
     next_node_to_add = -1 # integer label of next node to add, will count down
-    # (leaf nodes have positive integer labels, root is labeled 'root')
+    # (leaf nodes have labels from cell_index, root is labeled 'root')
 
     while len(unjoined_nodes) > 3:
         # recursive part of neighbor joining algorithm
@@ -1368,7 +1385,7 @@ def convert_newick_to_networkx(newick_tree, leaf_labels, leaf_time = None, root_
     root_name = root_label
     if len(newick_tree.descendants) == 0:
         # at a leaf, use index of label as name
-        if not (root_label in leaf_labels):
+        if not (root_label in leaf_labels):                                     
             raise ValueError("One of the leaves in the Newick tree does not have a corresponding label in leaf_labels")
         root_label = leaf_labels.index(root_label)
         

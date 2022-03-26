@@ -19,7 +19,7 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
     adata : AnnData
         Annotated data matrix with lineage-traced cells
     time : Number, default None
-        Time of sampling of the cells of adata relative to most recent common ancestor (for dynamic lineage tracing) or None otherwise (for static lineage tracing).
+        Time of sampling of the cells of adata relative to most recent common ancestor (for dynamic lineage tracing) or time of barcoding (for non-nested clones) or None (for nested clones).
     barcodes_key : str, default 'barcodes'
         Key in adata.obsm containing cell barcodes. Ignored if using clonal data.
         If using barcode data, each row of adata.obsm[barcodes_key] should be a barcode where each entry corresponds to a possibly-mutated site.
@@ -50,11 +50,14 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
         # last row is (unobserved) root of the tree
         lineage_distances = inf.barcode_distances(np.concatenate([adata.obsm[barcodes_key], np.zeros([1,barcode_length])]))
         
+        # get the keys to index each cell
+        cell_index = list(adata.obs_names)
+
         # compute tree
-        fitted_tree = inf.neighbor_join(lineage_distances)
+        fitted_tree = inf.neighbor_join(lineage_distances, cell_index)
         
         # annotate tree with node times
-        inf.add_leaf_barcodes(fitted_tree, adata.obsm[barcodes_key])
+        inf.add_leaf_barcodes(fitted_tree, adata.obsm[barcodes_key], cell_index)
         inf.add_leaf_times(fitted_tree, time)
         
         # Estimating a uniform mutation rate for all target sites
@@ -62,12 +65,14 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
         inf.annotate_tree(fitted_tree, 
                           rate_estimate*np.ones(barcode_length),
                           time_inference_method = 'least_squares');
+
     elif method == "non-nested clones":
         # check to confirm clones are not nested
         if not np.all(np.sum(adata.obsm[clones_key], 1) == 1):
             raise ValueError("The tree fitting method 'non-nested clones' assumes each cell is a member of exactly one clone. This is not the case for your data.")
 
-        fitted_tree = inf.make_tree_from_nonnested_clones(adata.obsm[clones_key], time)
+        cell_index = list(adata.obs_names)
+        fitted_tree = inf.make_tree_from_nonnested_clones(adata.obsm[clones_key], time, cell_index)
 
     elif method == "clones":
         if time is not None:
@@ -75,7 +80,7 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
         if clone_times is None:
             raise ValueError("clone_times must be specified in order to fit a tree to nested clones.")
         clone_times = np.array(clone_times) # allowing clone_times to be passed as a raw list without causing errors later
-        fitted_tree = inf.make_tree_from_clones(adata, clone_times, clones_key=clones_key)
+        fitted_tree = inf.make_tree_from_clones(adata, clone_times, clones_key=clones_key) # pass in entire adata as will extract clone_matrix, sampling time, and cell_index later
     else:
         raise ValueError("'" + method + "' is not an available method for fitting trees.")
 
@@ -161,7 +166,7 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
         state_arrays['late'] = adata[adata.obs[time_key] == time_2].obsm[state_key]
 
     # annotate tree
-    inf.add_leaf_x(lineage_tree_t2, state_arrays['late'])
+    inf.add_leaf_x(lineage_tree_t2, adata, state_key)
 
 
     # Add inferred ancestor nodes and states

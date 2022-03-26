@@ -49,7 +49,7 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
         barcode_length = adata.obsm[barcodes_key].shape[1]
         # last row is (unobserved) root of the tree
         lineage_distances = inf.barcode_distances(np.concatenate([adata.obsm[barcodes_key], np.zeros([1,barcode_length])]))
-        
+
         # get the keys to index each cell
         cell_index = list(adata.obs_names)
 
@@ -127,7 +127,7 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
     time_2 : Number
         The later time point in adata. All times are relative to the root of the tree.
     lineage_tree_t2 : Networkx DiGraph
-        The lineage tree fitted to cells at time_2. Nodes should already be annotated with times. Annotations related to cell state will be added. 
+        The lineage tree fitted to cells at time_2, or up to time_2 (for multi-time clones). Nodes should already be annotated with times. Annotations related to cell state will be added. 
     time_key : str (default 'time')
         Key in adata.obs and lineage_tree_t2 containing cells' time labels
     state_key : str (default None)

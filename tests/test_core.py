@@ -67,7 +67,7 @@ class Test_Fit_Couplings():
         t2 = 10;
         
         self.make_minimal_clonal_adata(t1 = t1, t2 = t2)
-        lineage_tree_t2 = lineageot.fit_tree(self.adata[self.adata.obs['time'] == t2], t2, clone_times = self.clone_times, method = 'clones')
+        lineage_tree_t2 = lineageot.fit_tree(self.adata, clone_times = self.clone_times, method = 'clones')
         coupling = lineageot.fit_lineage_coupling(self.adata, t1, t2, lineage_tree_t2)
         assert np.isclose(np.sum(coupling.X), 1, atol = 0, rtol = 10**(-6))
 

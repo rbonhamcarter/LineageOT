@@ -97,26 +97,27 @@ class Test_Neighbor_Join_Simple_Tree():
                 [8, 8, 6, 0, 3],
                 [7, 7, 5, 3, 0]
                 ]).astype(float)
+        self.cell_index = ['cell_0', 'cell_1', 'cell_2', 'cell_3']
 
         self.correct_nodes = {'root' : {},
-                              0 : {'time_to_parent': 1},
-                              1 : {'time_to_parent': 1},
-                              2 : {'time_to_parent': 1},
-                              3 : {'time_to_parent': 2},
+                              self.cell_index[0] : {'time_to_parent': 1},
+                              self.cell_index[1] : {'time_to_parent': 1},
+                              self.cell_index[2] : {'time_to_parent': 1},
+                              self.cell_index[3] : {'time_to_parent': 2},
                               -1: {'time_to_parent': 1},
                               -2: {'time_to_parent': 2},
                               -3: {'time_to_parent': 3}
                               }
                               
         self.correct_edges = {('root', -1),
-                              (-1, 3),
+                              (-1, self.cell_index[3]),
                               (-1, -3),
-                              (-3, 2),
+                              (-3, self.cell_index[2]),
                               (-3, -2),
-                              (-2, 0),
-                              (-2, 1)}
+                              (-2, self.cell_index[0]),
+                              (-2, self.cell_index[1])}
 
-        self.T = lineageot.inference.neighbor_join(self.d)
+        self.T = lineageot.inference.neighbor_join(self.d, self.cell_index)
         return
 
     def test_has_correct_nodes(self):
@@ -150,9 +151,10 @@ class Test_Tree_Annotation():
         barcodes = np.array([[1, 0, 3, 3],
                              [2, 0, 3, 3]])
         mutation_rates = np.ones(4)*0.5
+        cell_index = ['cell_0', 'cell_1']
 
-        tree = lineageot.inference.neighbor_join(distances)
-        lineageot.inference.add_leaf_barcodes(tree, barcodes)
+        tree = lineageot.inference.neighbor_join(distances, cell_index)
+        lineageot.inference.add_leaf_barcodes(tree, barcodes, cell_index)
         lineageot.inference.add_leaf_times(tree, 2)
         lineageot.inference.annotate_tree(tree, mutation_rates, time_inference_method = 'least_squares')
 
@@ -434,11 +436,11 @@ class Test_Tree_Fitting():
         lineage_tree_t2 = lineageot.fit_tree(self.static_adata[self.static_adata.obs['time'] == self.t2], self.t2, method = "non-nested clones")
 
         correct_tree = nx.DiGraph()
-        correct_tree.add_nodes_from([0, 1, 2, 3], time = 10, time_to_parent = 10)
+        correct_tree.add_nodes_from(['2', '3', '4', '5'], time = 10, time_to_parent = 10)
         correct_tree.add_nodes_from([-1, -2], time = 0, time_to_parent = 10000)
         correct_tree.add_node('root', time = -10000)
 
-        correct_tree.add_edges_from([(-1, 0), (-1, 1), (-2, 2), (-2, 3)], time = 10)
+        correct_tree.add_edges_from([(-1, '2'), (-1, '3'), (-2, '4'), (-2, '5')], time = 10)
         correct_tree.add_edges_from([('root', -1), ('root', -2)], time = 10000)
 
         assert_tree_equality(correct_tree, lineage_tree_t2)
@@ -452,14 +454,16 @@ class Test_Tree_Fitting():
     def test_nested_clone_tree_fit_1(self):
         # testing on nonnested clones
         self.make_minimal_static_adata()
-        lineage_tree_t2 = lineageot.fit_tree(self.static_adata[self.static_adata.obs['time'] == self.t2], self.t2, clone_times = self.clone_times, method = "clones")
+        lineage_tree_t2 = lineageot.fit_tree(self.static_adata, clone_times = self.clone_times, method = "clones")
 
         correct_tree = nx.DiGraph()
-        correct_tree.add_nodes_from([0, 1, 2, 3], time = 10, time_to_parent = 10)
+        correct_tree.add_nodes_from(['0', '1'], time = 5, time_to_parent = 5)
+        correct_tree.add_nodes_from(['2', '3', '4', '5'], time = 10, time_to_parent = 10)
         correct_tree.add_nodes_from(['clone_0', 'clone_1'], time = 0, time_to_parent = np.inf)
         correct_tree.add_node('root', time = -np.inf)
 
-        correct_tree.add_edges_from([('clone_0', 0), ('clone_0', 1), ('clone_1', 2), ('clone_1', 3)], time = 10)
+        correct_tree.add_edges_from([('clone_0', '0'), ('clone_1', '1')], time = 5)
+        correct_tree.add_edges_from([('clone_0', '2'), ('clone_0', '3'), ('clone_1', '4'), ('clone_1', '5')], time = 10)
         correct_tree.add_edges_from([('root', 'clone_0'), ('root', 'clone_1')], time = np.inf)
 
         assert_tree_equality(correct_tree, lineage_tree_t2)
@@ -468,16 +472,20 @@ class Test_Tree_Fitting():
     def test_nested_clone_tree_fit_2(self):
         # testing on simply nested clones
         self.make_nested_static_adata()
-        lineage_tree_t2 = lineageot.fit_tree(self.static_adata[self.static_adata.obs['time'] == self.t2], self.t2, clone_times = self.clone_times, method = "clones")
+        lineage_tree_t2 = lineageot.fit_tree(self.static_adata, clone_times = self.clone_times, method = "clones")
 
         correct_tree = nx.DiGraph()
-        correct_tree.add_nodes_from([0, 1, 2, 3, 4, 5, 6, 7], time = 10, time_to_parent = 3)
+        correct_tree.add_nodes_from(['0', '1'], time = 5, time_to_parent = 5)
+        correct_tree.add_nodes_from(['2', '3', '4', '5', '6', '7', '8', '9'], time = 10, time_to_parent = 3)
         correct_tree.add_nodes_from(['clone_0', 'clone_1'], time = 0, time_to_parent = np.inf) # day 0 clones
         correct_tree.add_nodes_from(['clone_2', 'clone_3', 'clone_4', 'clone_5'], time = 7, time_to_parent = 7) # day 7 clones
         correct_tree.add_node('root', time = -np.inf)
 
-        correct_tree.add_edges_from([('clone_0', 'clone_2'), ('clone_0', 'clone_3'), ('clone_1', 'clone_4'), ('clone_1', 'clone_5')], time = 7)
-        correct_tree.add_edges_from([('clone_2', 0), ('clone_2', 1), ('clone_3', 2), ('clone_3', 3), ('clone_4', 4), ('clone_4', 5), ('clone_5', 6), ('clone_5', 7)], time = 3)
+        correct_tree.add_edges_from([('clone_0', 'clone_2'), ('clone_0', 'clone_3'), 
+                                     ('clone_1', 'clone_4'), ('clone_1', 'clone_5')], time = 7)
+        correct_tree.add_edges_from([('clone_0', '0'), ('clone_1', '1')], time = 5) # time 5 cells
+        correct_tree.add_edges_from([('clone_2', '2'), ('clone_2', '3'), ('clone_3', '4'), ('clone_3', '5'), 
+                                     ('clone_4', '6'), ('clone_4', '7'), ('clone_5', '8'), ('clone_5', '9')], time = 3) # time 10 cells
         correct_tree.add_edges_from([('root', 'clone_0'), ('root', 'clone_1')], time = np.inf)
         assert_tree_equality(correct_tree, lineage_tree_t2)
 

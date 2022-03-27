@@ -1496,10 +1496,13 @@ def compute_tree_distances(tree):
     """
     Computes the matrix of pairwise distances between leaves of the tree
     """
-    num_leaves = len(get_leaves(tree)) - 1
+    leaves = get_leaves(tree)
+    num_leaves = len(leaves) - 1
     distances = np.zeros([num_leaves, num_leaves])
     for leaf in range(num_leaves):
-        distance_dictionary, tmp = nx.multi_source_dijkstra(tree.to_undirected(), [leaf], weight = 'time')
+        leaf_label = leaves[leaf]
+        distance_dictionary, tmp = nx.multi_source_dijkstra(tree.to_undirected(), [leaf_label], weight = 'time')
         for target_leaf in range(num_leaves):
-            distances[leaf, target_leaf] = distance_dictionary[target_leaf]
+            target_leaf_label = leaves[target_leaf]
+            distances[leaf, target_leaf] = distance_dictionary[target_leaf_label]
     return distances

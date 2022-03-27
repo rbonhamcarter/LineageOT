@@ -168,11 +168,12 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
     # annotate tree
     inf.add_leaf_x(lineage_tree_t2, adata, state_key)
 
-
     # Add inferred ancestor nodes and states
     inf.add_nodes_at_time(lineage_tree_t2, time_1)
 
+    # Get the list of indexes for the observed nodes in the tree
     observed_nodes = [n for n in inf.get_leaves(lineage_tree_t2, include_root = False)]
+    observed_nodes_at_t2 = [n for n in observed_nodes if n in adata[adata.obs[time_key] == time_2].obs_names]
 
     # Split tree into components that share information
     components = inf.get_components(lineage_tree_t2)
@@ -181,7 +182,7 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
         inf.add_conditional_means_and_variances(comp, observed_nodes)
 
     # collect predicted ancestral states
-    ancestor_info = inf.get_ancestor_data(lineage_tree_t2, time_1)
+    ancestor_info = inf.get_ancestor_data(lineage_tree_t2, time_1, nodes=observed_nodes_at_t2)
 
     # change backend of ancestor_info to AnnData ArrayView
     # to match state_arrays['early'], because POT v0.8 requires

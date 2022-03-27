@@ -180,18 +180,20 @@ def add_leaf_x(tree, adata, state_key = None):
     """
     Adds expression vectors from adata.X to the corresponding leaves of the tree
     """
+    observed_nodes = [n for n in get_leaves(tree, include_root = False)]
+
     if state_key is None:
-        x_array = adata.X
+        x_array = adata[observed_nodes].X
     else:
-        x_array = adata.obsm[state_key]
+        x_array = adata[observed_nodes].obsm[state_key]
 
     num_cells = x_array.shape[0]
     for cell in range(num_cells):
-        cell_label = adata.obs_names[cell]
+        cell_label = observed_nodes[cell]
         if 'cell' in tree.nodes[cell_label]:
             tree.nodes[cell_label]['cell'].x = x_array[cell, :]
         else:
-            tree.nodes[cell_label]['cell'] = sim.Cell(x_array[cell_label, :], np.nan)
+            tree.nodes[cell_label]['cell'] = sim.Cell(x_array[cell, :], np.nan)
     return tree
 
     
@@ -863,18 +865,20 @@ def add_conditional_means_and_variances(tree, observed_nodes):
         
 
 
-def get_ancestor_data(tree, time, leaf = None):
-    if leaf == None:
-        # get all leaf ancestors
-        leaves = [l for l in get_leaves(tree) if not l == 'root']
-        data = [get_ancestor_data(tree, time, l) for l in leaves]
+def get_ancestor_data(tree, time, nodes = None, next_node = None):
+    if next_node == None:
+        # get all ancestors at time of nodes in list (or all leaves if nodes is None)
+        if nodes == None: # set nodes == leaves
+            nodes = [l for l in get_leaves(tree) if not l == 'root']
+
+        data = [get_ancestor_data(tree, time, nodes, l) for l in nodes]
         return np.array([d[0] for d in data]), np.array([d[1] for d in data])
     else:
-        current_node = leaf
+        current_node = next_node
         while tree.nodes[current_node]['time'] > time:
             current_node = next(tree.predecessors(current_node))
         if tree.nodes[current_node]['time'] < time:
-            error = "Tree has no ancestor of cell " + str(leaf) + " at time " + str(time)
+            error = "Tree has no ancestor of cell " + str(next_node) + " at time " + str(time)
             raise ValueError(error)
         return (tree.nodes[current_node]['x mean'], tree.nodes[current_node]['x variance'])
     return

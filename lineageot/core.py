@@ -72,7 +72,7 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
             raise ValueError("The tree fitting method 'non-nested clones' assumes each cell is a member of exactly one clone. This is not the case for your data.")
 
         cell_index = list(adata.obs_names)
-        fitted_tree = inf.make_tree_from_nonnested_clones(adata.obsm[clones_key], time, cell_index)
+        fitted_tree = inf.make_tree_from_nonnested_clones(adata.obsm[clones_key], cell_index, time)
 
     elif method == "clones":
         if time is not None:

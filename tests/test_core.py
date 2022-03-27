@@ -59,9 +59,23 @@ class Test_Fit_Couplings():
         coupling = lineageot.fit_lineage_coupling(self.adata, t1, t2, lineage_tree_t2)
         assert np.isclose(np.sum(coupling.X), 1, atol = 0, rtol = 10**(-6))
 
+    def test_docs_example_multi_time(self):
+        """
+        Checking whether the minimal pipeline example from the docs runs without errors 
+        when using multi-time clonal information.
+        """
+        t1 = 5;
+        t2 = 10;
+
+        self.make_minimal_adata(t1 = t1, t2 = t2)
+        lineage_tree_t2 = lineageot.fit_tree(self.adata, t2)
+        coupling = lineageot.fit_lineage_coupling(self.adata, t1, t2, lineage_tree_t2)
+        assert np.isclose(np.sum(coupling.X), 1, atol = 0, rtol = 10**(-6))
+
     def test_clonal_docs_example(self):
         """
         Checking whether the minimal pipeline example for clonal data runs without errors
+        (using multi-time clonal information).
         """
         t1 = 5;
         t2 = 10;

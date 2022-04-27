@@ -72,6 +72,9 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
             warning("Attempting to convert adata.obsm[clones_key] to an ndarray.")
             adata.obsm[clones_key] = adata.obsm[clones_key].toarray()
 
+        # remove any clones not containing any cells
+        adata.obsm[clones_key] = adata.obsm[clones_key][:,~np.all(adata.obsm[clones_key] == 0, axis = 0)]
+
         # check to confirm clones are not nested
         if not np.all(np.sum(adata.obsm[clones_key], 1) == 1):
             raise ValueError("The tree fitting method 'non-nested clones' assumes each cell is a member of exactly one clone. This is not the case for your data.")
@@ -85,11 +88,14 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
             warning("Attempting to convert adata.obsm[clones_key] to an ndarray.")
             adata.obsm[clones_key] = adata.obsm[clones_key].toarray()
 
+        # remove any clones not containing any cells
+        adata.obsm[clones_key] = adata.obsm[clones_key][:,~np.all(adata.obsm[clones_key] == 0, axis = 0)]
+
         if time is not None:
             warning("time argument is not used for clones method, sampling time information taken from adata.obs['time'] directly")
         if clone_times is None:
             raise ValueError("clone_times must be specified in order to fit a tree to nested clones.")
-            
+
         clone_times = np.array(clone_times) # allowing clone_times to be passed as a raw list without causing errors later
         fitted_tree = inf.make_tree_from_clones(adata, clone_times, clones_key=clones_key) # pass in entire adata as will extract clone_matrix, sampling time, and cell_index later
     else:

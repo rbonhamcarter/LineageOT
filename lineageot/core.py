@@ -78,9 +78,10 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
 
         # remove any clones not containing any cells
         empty_clones = np.all(adata.obsm[clones_key] == 0, axis = 0)
-        if empty_clones.shape[0] > 0:
+        num_empty_clones = np.count_nonzero(empty_clones)
+        if num_empty_clones > 0:
             adata.obsm[clones_key] = adata.obsm[clones_key][:,~empty_clones]
-            warning("{} clones were empty and hence removed from X_clone".format(empty_clones.shape[0]))
+            warning("{} clones were empty and hence removed from X_clone".format(num_empty_clones))
 
         cell_index = list(adata.obs_names)
         fitted_tree = inf.make_tree_from_nonnested_clones(adata.obsm[clones_key], cell_index, time)
@@ -100,10 +101,11 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
 
         # remove any clones not containing any cells
         empty_clones = np.all(adata.obsm[clones_key] == 0, axis = 0)
-        if empty_clones.shape[0] > 0:
+        num_empty_clones = np.count_nonzero(empty_clones)
+        if num_empty_clones > 0:
             adata.obsm[clones_key] = adata.obsm[clones_key][:,~empty_clones]
             clone_times = clone_times[~empty_clones]
-            warning("{} clones were empty and hence removed from X_clone and clone_times".format(empty_clones.shape[0]))
+            warning("{} clones were empty and hence removed from X_clone and clone_times".format(num_empty_clones))
 
         fitted_tree = inf.make_tree_from_clones(adata, clone_times, clones_key=clones_key) # pass in entire adata as will extract clone_matrix, sampling time, and cell_index later
     else:

@@ -72,6 +72,26 @@ class Test_Fit_Couplings():
         coupling = lineageot.fit_lineage_coupling(self.adata, t1, t2, lineage_tree_t2)
         assert np.isclose(np.sum(coupling.X), 1, atol = 0, rtol = 10**(-6))
 
+    def test_clonal_docs_example_shuffle_index(self):
+        """
+        Checking whether the minimal pipeline example from the docs gives the same result 
+        when after shuffling and unshuffling the anndata.
+        """
+        t1 = 5;
+        t2 = 10;
+
+        self.make_minimal_clonal_adata(t1 = t1, t2 = t2)
+        lineage_tree_t2 = lineageot.fit_tree(self.adata, clone_times = self.clone_times, method = 'clones')
+        coupling = lineageot.fit_lineage_coupling(self.adata, t1, t2, lineage_tree_t2)
+
+        shuffled_adata = self.adata[self.adata.obs.index[::-1]]    # reverse the order
+        shuffled_lineage_tree_t2 = lineageot.fit_tree(shuffled_adata, clone_times = self.clone_times, method = 'clones')
+        shuffled_coupling = lineageot.fit_lineage_coupling(shuffled_adata, t1, t2, shuffled_lineage_tree_t2)
+        unshuffled_coupling = shuffled_coupling[coupling.obs.index, coupling.var.index]
+       
+        assert np.all(np.isclose(coupling.X, unshuffled_coupling.X, atol = 10**(-6), rtol = 10**(-6)))
+
+
     def test_clonal_docs_example(self):
         """
         Checking whether the minimal pipeline example for clonal data runs without errors

@@ -200,7 +200,8 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
 
     # Get the list of indexes for the observed nodes in the tree
     observed_nodes = [n for n in inf.get_leaves(lineage_tree_t2, include_root = False)]
-    observed_nodes_at_t2 = [n for n in observed_nodes if n in adata[adata.obs[time_key] == time_2].obs_names]
+    observed_nodes_at_t2 = list(adata[adata.obs[time_key] == time_2].obs_names)
+    assert np.all([n in observed_nodes for n in observed_nodes_at_t2])
 
     # Split tree into components that share information
     components = inf.get_components(lineage_tree_t2)

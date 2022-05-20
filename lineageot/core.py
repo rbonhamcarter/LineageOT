@@ -76,12 +76,19 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
             warning("Attempting to convert adata.obsm[clones_key] to an ndarray.")
             adata.obsm[clones_key] = adata.obsm[clones_key].toarray()
 
+        # remove any cells with no clonal infomation
+        cells_without_clones = np.all(adata.obsm[clones_key] == 0, axis = 1)
+        num_cells_without_clones = np.count_nonzero(cells_without_clones)
+        if num_cells_without_clones > 0:
+            adata = adata[~cells_without_clones]
+            warning("{} cells had no clonal infomation and were not included in the tree".format(num_cells_without_clones))
+
         # remove any clones not containing any cells
         empty_clones = np.all(adata.obsm[clones_key] == 0, axis = 0)
         num_empty_clones = np.count_nonzero(empty_clones)
         if num_empty_clones > 0:
             adata.obsm[clones_key] = adata.obsm[clones_key][:,~empty_clones]
-            warning("{} clones were empty and hence removed from X_clone".format(num_empty_clones))
+            warning("{} clones were empty and hence removed.".format(num_empty_clones))
 
         cell_index = list(adata.obs_names)
         fitted_tree = inf.make_tree_from_nonnested_clones(adata.obsm[clones_key], cell_index, time)
@@ -99,13 +106,20 @@ def fit_tree(adata, time = None, barcodes_key = 'barcodes', clones_key = "X_clon
 
         clone_times = np.array(clone_times) # allowing clone_times to be passed as a raw list without causing errors later
 
+        # remove any cells with no clonal infomation
+        cells_without_clones = np.all(adata.obsm[clones_key] == 0, axis = 1)
+        num_cells_without_clones = np.count_nonzero(cells_without_clones)
+        if num_cells_without_clones > 0:
+            adata = adata[~cells_without_clones]
+            warning("{} cells had no clonal infomation and were not included in the tree".format(num_cells_without_clones))
+
         # remove any clones not containing any cells
         empty_clones = np.all(adata.obsm[clones_key] == 0, axis = 0)
         num_empty_clones = np.count_nonzero(empty_clones)
         if num_empty_clones > 0:
             adata.obsm[clones_key] = adata.obsm[clones_key][:,~empty_clones]
             clone_times = clone_times[~empty_clones]
-            warning("{} clones were empty and hence removed from X_clone and clone_times".format(num_empty_clones))
+            warning("{} clones were empty and hence removed".format(num_empty_clones))
 
         fitted_tree = inf.make_tree_from_clones(adata, clone_times, clones_key=clones_key) # pass in entire adata as will extract clone_matrix, sampling time, and cell_index later
     else:
@@ -192,16 +206,26 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
         state_arrays['early'] = adata[adata.obs[time_key] == time_1].obsm[state_key]
         state_arrays['late'] = adata[adata.obs[time_key] == time_2].obsm[state_key]
 
-    # annotate tree
-    inf.add_leaf_x(lineage_tree_t2, adata, state_key)
-
-    # Add inferred ancestor nodes and states
-    inf.add_nodes_at_time(lineage_tree_t2, time_1)
 
     # Get the list of indexes for the observed nodes in the tree
     observed_nodes = [n for n in inf.get_leaves(lineage_tree_t2, include_root = False)]
     observed_nodes_at_t2 = list(adata[adata.obs[time_key] == time_2].obs_names)
     assert np.all([n in observed_nodes for n in observed_nodes_at_t2])
+
+    # For the ancestor estimation steps, remove any cells from time_1 that are not in the tree 
+    # Any cells at time_2 not in the tree are not allowed and the above assert will fail
+    cells_in_tree = []
+    for cell in adata.obs.index:
+        if cell in observed_nodes:
+            cells_in_tree.append(cell)
+
+    adata_in_tree = adata[cells_in_tree]
+    
+    # annotate tree
+    inf.add_leaf_x(lineage_tree_t2, adata_in_tree, state_key)
+
+    # Add inferred ancestor nodes and states
+    inf.add_nodes_at_time(lineage_tree_t2, time_1)
 
     # Split tree into components that share information
     components = inf.get_components(lineage_tree_t2)

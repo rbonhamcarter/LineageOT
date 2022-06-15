@@ -239,7 +239,7 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
     # change backend of ancestor_info to AnnData ArrayView
     # to match state_arrays['early'], because POT v0.8 requires
     # matching backends
-    ancestor_states = anndata.AnnData(X = ancestor_info[0])[:,:].X
+    ancestor_states = anndata.AnnData(X = ancestor_info[0], dtype=np.float64)[:,:].X
 
     # compute cost matrix
     # (converted to numpy array to match default marginal backend)
@@ -256,7 +256,7 @@ def fit_lineage_coupling(adata, time_1, time_2, lineage_tree_t2, time_key = 'tim
 
 
     # reformat coupling as anndata
-    coupling = anndata.AnnData(X = coupling_matrix,
+    coupling = anndata.AnnData(X = coupling_matrix, dtype=np.float64,
                                obs = adata[adata.obs[time_key] == time_1].obs,
                                var = adata[adata.obs[time_key] == time_2].obs
                                )
